@@ -1,0 +1,23 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      target: development
+    command: pnpm run start:dev
+    environment:
+      LOG_LEVEL: debug
+    volumes:
+      - ./packages/backend:/app
+      - /app/node_modules
+
+  frontend:
+    build:
+      target: development
+    command: pnpm run dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./packages/frontend:/app
+      - /app/node_modules
+      - /app/.next

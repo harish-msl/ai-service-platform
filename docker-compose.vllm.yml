@@ -1,0 +1,182 @@
+# Docker Compose for vLLM AI Models
+# Run with: docker-compose -f docker-compose.vllm.yml up -d
+#
+# Requirements:
+# - NVIDIA GPU with CUDA support (or use CPU mode - slower)
+# - NVIDIA Container Toolkit installed
+# - At least 16GB RAM for Qwen2.5-7B models
+#
+# Quick Start:
+# 1. GPU mode: docker-compose -f docker-compose.vllm.yml up -d vllm-chat
+# 2. CPU mode: docker-compose -f docker-compose.vllm.yml up -d vllm-chat-cpu
+
+version: '3.9'
+
+services:
+  # vLLM Chat Model - Qwen2.5-7B-Instruct (GPU)
+  vllm-chat:
+    image: vllm/vllm-openai:latest
+    container_name: ai-service-vllm-chat
+    restart: unless-stopped
+    ports:
+      - '8003:8000'
+    environment:
+      # Model configuration
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+    command:
+      - --model=Qwen/Qwen2.5-7B-Instruct
+      - --port=8000
+      - --host=0.0.0.0
+      - --api-key=EMPTY
+      - --served-model-name=Qwen/Qwen2.5-7B-Instruct
+      - --max-model-len=4096
+      - --dtype=auto
+      - --trust-remote-code
+    volumes:
+      - vllm_cache:/root/.cache/huggingface
+    networks:
+      - ai-service-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    profiles:
+      - gpu
+
+  # vLLM Chat Model - CPU Mode (slower but works without GPU)
+  vllm-chat-cpu:
+    image: vllm/vllm-openai:latest
+    container_name: ai-service-vllm-chat-cpu
+    restart: unless-stopped
+    ports:
+      - '8003:8000'
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+      - VLLM_CPU_KVCACHE_SPACE=4
+      - VLLM_DEVICE=cpu
+      - VLLM_WORKER_MULTIPROC_METHOD=spawn
+      - VLLM_LOGGING_LEVEL=INFO
+    command:
+      - --model=Qwen/Qwen2.5-7B-Instruct
+      - --port=8000
+      - --host=0.0.0.0
+      - --api-key=EMPTY
+      - --device=cpu
+      - --dtype=float16
+      - --max-model-len=2048
+      - --trust-remote-code
+      - --enforce-eager
+    volumes:
+      - vllm_cache:/root/.cache/huggingface
+    networks:
+      - ai-service-network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    profiles:
+      - cpu
+
+  # vLLM Query Generation Model - Qwen2.5-Coder-32B (GPU)
+  vllm-coder:
+    image: vllm/vllm-openai:latest
+    container_name: ai-service-vllm-coder
+    restart: unless-stopped
+    ports:
+      - '8001:8000'
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+    command:
+      - --model=Qwen/Qwen2.5-Coder-32B-Instruct
+      - --port=8000
+      - --host=0.0.0.0
+      - --api-key=EMPTY
+      - --served-model-name=Qwen/Qwen2.5-Coder-32B-Instruct
+      - --max-model-len=4096
+      - --dtype=auto
+      - --tensor-parallel-size=2
+      - --trust-remote-code
+    volumes:
+      - vllm_cache:/root/.cache/huggingface
+    networks:
+      - ai-service-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 2
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    profiles:
+      - gpu
+      - full
+
+  # vLLM Analytics Model - DeepSeek-R1 (GPU)
+  vllm-analytics:
+    image: vllm/vllm-openai:latest
+    container_name: ai-service-vllm-analytics
+    restart: unless-stopped
+    ports:
+      - '8002:8000'
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+    command:
+      - --model=deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+      - --port=8000
+      - --host=0.0.0.0
+      - --api-key=EMPTY
+      - --served-model-name=DeepSeek-R1-Distill-Qwen-7B
+      - --max-model-len=4096
+      - --dtype=auto
+      - --trust-remote-code
+    volumes:
+      - vllm_cache:/root/.cache/huggingface
+    networks:
+      - ai-service-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    profiles:
+      - gpu
+      - full
+
+volumes:
+  vllm_cache:
+    driver: local
+
+networks:
+  ai-service-network:
+    external: true
+    name: ai-service-platform_ai-service-network

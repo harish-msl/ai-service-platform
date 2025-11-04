@@ -1,0 +1,71 @@
+version: "3.9"
+
+services:
+  # vLLM Embeddings Server
+  vllm-embeddings:
+    image: vllm/vllm-openai:latest
+    container_name: ai-service-vllm-embeddings
+    restart: unless-stopped
+    command: >
+      --model BAAI/bge-small-en-v1.5
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len 512
+      --dtype float16
+    ports:
+      - "${VLLM_EMBEDDINGS_PORT:-8000}:8000"
+    volumes:
+      - vllm_cache:/root/.cache/huggingface
+    networks:
+      - ai-service-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    profiles:
+      - with-gpu
+
+  # CPU-only alternative using sentence-transformers
+  embeddings-cpu:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.2
+    container_name: ai-service-embeddings-cpu
+    restart: unless-stopped
+    command: --model-id BAAI/bge-small-en-v1.5 --port 8000
+    ports:
+      - "${EMBEDDINGS_CPU_PORT:-8001}:8000"
+    volumes:
+      - embeddings_cache:/data
+    networks:
+      - ai-service-network
+    environment:
+      MODEL_ID: BAAI/bge-small-en-v1.5
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    profiles:
+      - cpu-only
+
+volumes:
+  vllm_cache:
+    driver: local
+  embeddings_cache:
+    driver: local
+
+networks:
+  ai-service-network:
+    external: true

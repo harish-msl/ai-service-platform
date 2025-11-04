@@ -1,0 +1,86 @@
+version: '3.9'
+
+services:
+  # Ollama - Easy CPU/GPU model serving (Alternative to vLLM)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai-service-ollama
+    restart: unless-stopped
+    ports:
+      - '11434:11434'
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - ai-service-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    profiles:
+      - cpu
+
+  # Ollama Model Puller (pulls model on first run)
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: ai-service-ollama-pull
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # Wait for Ollama to be fully ready
+        sleep 5
+        # Pull Qwen2.5 7B model (similar to vLLM model)
+        ollama pull qwen2.5:7b
+        echo "Model pulled successfully!"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - ai-service-network
+    profiles:
+      - cpu
+
+  # Ollama OpenAI-Compatible Proxy
+  # This makes Ollama compatible with OpenAI API format
+  ollama-proxy:
+    image: ghcr.io/go-skynet/local-ai:latest
+    container_name: ai-service-ollama-proxy
+    restart: unless-stopped
+    ports:
+      - '8003:8080'  # Maps to port 8003 like vLLM
+    environment:
+      - THREADS=4
+      - CONTEXT_SIZE=2048
+      - MODELS_PATH=/models
+      - GALLERIES=[{"name":"model-gallery", "url":"github:go-skynet/model-gallery/index.yaml"}]
+      - DEBUG=false
+      - LLAMACPP_PARALLEL=1
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ollama_data:/models
+    networks:
+      - ai-service-network
+    depends_on:
+      - ollama
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - proxy
+
+volumes:
+  ollama_data:
+    driver: local
+
+networks:
+  ai-service-network:
+    external: true
+    name: ai-service-platform_ai-service-network

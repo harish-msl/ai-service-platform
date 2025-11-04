@@ -1,0 +1,29 @@
+{
+  "name": "ai-service-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-as-a-Service Platform - Monorepo",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "docker:logs": "docker-compose logs -f",
+    "docker:clean": "docker-compose down -v && docker system prune -f"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "turbo": "^2.3.0",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=22.11.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.14.2"
+}
