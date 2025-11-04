@@ -335,9 +335,9 @@ This project is proprietary and confidential. Unauthorized copying or distributi
 
 ---
 
-## 👥 Team
+## 👤 Development
 
-**Development Team:** Internal AI Platform Team  
+**Developer:** Harish Kumar S  
 **Project Start:** November 2, 2025  
 **Target Completion:** December 15, 2025
 
