@@ -7,9 +7,10 @@ import { AnalyticsService } from './services/analytics.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { WeaviateModule } from '../weaviate/weaviate.module';
 import { ApiKeysModule } from '../api-keys/api-keys.module';
+import { ProjectsModule } from '../projects/projects.module';
 
 @Module({
-  imports: [PrismaModule, WeaviateModule, ApiKeysModule],
+  imports: [PrismaModule, WeaviateModule, ApiKeysModule, ProjectsModule],
   controllers: [AiController],
   providers: [
     AiGateway,

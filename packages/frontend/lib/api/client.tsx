@@ -8,7 +8,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1
 // Create axios instance
 export const api = axios.create({
   baseURL: API_URL,
-  timeout: 30000,
+  timeout: 120000, // Increased to 120s (2 minutes) for AI operations (Ollama can be slow)
   headers: {
     "Content-Type": "application/json",
   },

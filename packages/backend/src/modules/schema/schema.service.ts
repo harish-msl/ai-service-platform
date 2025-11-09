@@ -433,6 +433,38 @@ export class SchemaService {
         tables,
         dialect: 'POSTGRESQL' as DatabaseDialect,
       };
+    } catch (error) {
+      this.logger.error('Failed to discover PostgreSQL schema:', error);
+      
+      // Provide helpful error messages
+      if (error.code === '28000' || error.code === '28P01') {
+        // Authentication errors
+        const message = error.message || '';
+        if (message.includes('does not exist')) {
+          throw new BadRequestException(
+            'Database user does not exist. Please use a valid PostgreSQL username (e.g., "postgres"), not an email address.'
+          );
+        }
+        throw new BadRequestException(
+          'Database authentication failed. Please check your username and password. ' +
+          'Note: Use your PostgreSQL username (e.g., "postgres"), not an email address.'
+        );
+      } else if (error.code === 'ECONNREFUSED') {
+        throw new BadRequestException(
+          'Could not connect to database. Please check that the host and port are correct and the database is running.'
+        );
+      } else if (error.code === '3D000') {
+        throw new BadRequestException('Database does not exist');
+      } else if (error.message?.includes('does not exist')) {
+        throw new BadRequestException(
+          `Database connection failed: ${error.message}. ` +
+          'Make sure you\'re using a valid PostgreSQL username (not an email address).'
+        );
+      }
+      
+      throw new BadRequestException(
+        `Failed to connect to database: ${error.message || 'Unknown error'}`
+      );
     } finally {
       await client.end();
     }
@@ -505,6 +537,26 @@ export class SchemaService {
         tables,
         dialect: 'MYSQL' as DatabaseDialect,
       };
+    } catch (error) {
+      this.logger.error('Failed to discover MySQL schema:', error);
+      
+      // Provide helpful error messages
+      if (error.code === 'ER_ACCESS_DENIED_ERROR') {
+        throw new BadRequestException(
+          'Database authentication failed. Please check your username and password. ' +
+          'Note: Use your MySQL username (e.g., "root"), not an email address.'
+        );
+      } else if (error.code === 'ECONNREFUSED') {
+        throw new BadRequestException(
+          'Could not connect to database. Please check that the host and port are correct and the database is running.'
+        );
+      } else if (error.code === 'ER_BAD_DB_ERROR') {
+        throw new BadRequestException('Database does not exist');
+      }
+      
+      throw new BadRequestException(
+        `Failed to connect to database: ${error.message || 'Unknown error'}`
+      );
     } finally {
       await connection.end();
     }

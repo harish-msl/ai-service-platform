@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, Calendar, Key, TrendingUp, Loader2, Edit, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar, Key, TrendingUp, Loader2, Edit, Trash2, Sparkles, Database } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -255,6 +255,38 @@ export default function ProjectDetailsPage() {
                 <div className="text-left">
                   <p className="font-semibold">Upload Schema</p>
                   <p className="text-sm text-muted-foreground">Upload database schema for AI features</p>
+                </div>
+              </div>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="justify-start h-auto py-4"
+              onClick={() => router.push(`/dashboard/projects/${project.id}/context`)}
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-300" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold">View Project Context</p>
+                  <p className="text-sm text-muted-foreground">View AI-generated context and suggestion prompts</p>
+                </div>
+              </div>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="justify-start h-auto py-4"
+              onClick={() => router.push("/dashboard/chat")}
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Database className="w-5 h-5 text-orange-600 dark:text-orange-300" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold">AI Chat</p>
+                  <p className="text-sm text-muted-foreground">Chat with AI about your database</p>
                 </div>
               </div>
             </Button>

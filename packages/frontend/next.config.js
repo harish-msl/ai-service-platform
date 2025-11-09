@@ -5,6 +5,11 @@ const nextConfig = {
   poweredByHeader: false,
   compress: true,
   
+  // Disable ESLint during builds (already run separately)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  
   // Experimental features to help with SSR issues
   experimental: {
     serverActions: {

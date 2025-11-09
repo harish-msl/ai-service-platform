@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -12,6 +13,9 @@ async function bootstrap() {
 
   // Logger
   app.useLogger(app.get(Logger));
+
+  // Cookie parser (for SSE authentication from cookies)
+  app.use(cookieParser());
 
   // Security
   app.use(helmet());

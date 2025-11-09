@@ -11,6 +11,7 @@ import { AnalyticsService } from './services/analytics.service';
 import { GenerateQueryDto } from './dto/generate-query.dto';
 import { ChatMessageDto } from './dto/chat-message.dto';
 import { AnalyticsRequestDto } from './dto/analytics-request.dto';
+import { SubmitFeedbackDto } from './dto/submit-feedback.dto';
 
 @ApiTags('AI Services')
 @Controller('ai')
@@ -121,5 +122,16 @@ export class AiController {
   @ApiResponse({ status: 200, description: 'Chat response generated successfully' })
   async chatExternal(@Body() dto: ChatMessageDto, @CurrentProject('id') projectId: string) {
     return this.chatbotService.chat(projectId, dto.message, dto.conversationId);
+  }
+
+  // Feedback Endpoints
+  @Post('feedback')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Submit feedback for a chat message' })
+  @ApiResponse({ status: 201, description: 'Feedback submitted successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid request data' })
+  async submitFeedback(@Body() dto: SubmitFeedbackDto, @CurrentUser('id') userId: string) {
+    return this.chatbotService.submitFeedback(dto);
   }
 }

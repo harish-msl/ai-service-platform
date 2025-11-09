@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
@@ -21,7 +21,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  projects  Project[]
+  projects Project[]
 
   @@map("users")
 }
@@ -42,11 +42,15 @@ model Project {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  apiKeys      ApiKey[]
-  schema       ProjectSchema?
-  usage        ApiUsage[]
-  chatMessages ChatMessage[]
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKeys          ApiKey[]
+  schema           ProjectSchema?
+  context          ProjectContext?
+  usage            ApiUsage[]
+  chatMessages     ChatMessage[]
+  trainingExamples TrainingExample[]
+  userFeedback     UserFeedback[]
+  conversations    Conversation[]
 
   @@map("projects")
 }
@@ -58,17 +62,17 @@ enum Environment {
 }
 
 model ApiKey {
-  id          String    @id @default(uuid())
-  key         String    @unique
-  name        String
-  projectId   String
-  scopes      Scope[]
-  rateLimit   Int       @default(1000)
-  isActive    Boolean   @default(true)
-  expiresAt   DateTime?
-  lastUsedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String    @id @default(uuid())
+  key        String    @unique
+  name       String
+  projectId  String
+  scopes     Scope[]
+  rateLimit  Int       @default(1000)
+  isActive   Boolean   @default(true)
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -99,6 +103,33 @@ model ProjectSchema {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("project_schemas")
+}
+
+// Project Context - AI-generated + manual context for better responses
+model ProjectContext {
+  id                String   @id @default(uuid())
+  projectId         String   @unique
+  
+  // AI-generated context from schema analysis
+  aiGeneratedContext String?  @db.Text
+  contextSummary     String?  @db.Text
+  
+  // Manual JSON context (best practices, business rules, examples)
+  manualContextJson  Json?
+  
+  // Suggestion prompts
+  initialPrompts     Json? // Array of initial suggestion prompts
+  followUpTemplates  Json? // Templates for follow-up suggestions
+  
+  // Metadata
+  lastAiGeneratedAt  DateTime?
+  lastManualUpdateAt DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_contexts")
 }
 
 enum DatabaseDialect {
@@ -144,4 +175,60 @@ enum MessageRole {
   USER
   ASSISTANT
   SYSTEM
+}
+
+// RAG Training Data - Store successful Q&A pairs for learning
+model TrainingExample {
+  id          String   @id @default(uuid())
+  projectId   String
+  question    String   @db.Text
+  answer      String   @db.Text
+  sqlQuery    String?  @db.Text
+  chartConfig Json?
+  context     Json // Stores schema snapshot, domain info, etc.
+  quality     Int      @default(0) // Quality score 0-100
+  verified    Boolean  @default(false) // Admin verified example
+  successful  Boolean  @default(true) // SQL executed successfully
+  userRating  Int? // Optional 1-5 star rating
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, quality])
+  @@index([projectId, createdAt])
+  @@map("training_examples")
+}
+
+// User Feedback - Track what users find helpful
+model UserFeedback {
+  id        String   @id @default(uuid())
+  messageId String // ChatMessage ID
+  projectId String
+  rating    Int // -1 (thumbs down), 0 (neutral), 1 (thumbs up)
+  stars     Int? // Optional 1-5 star rating
+  helpful   Boolean  @default(true)
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([projectId, rating])
+  @@map("user_feedback")
+}
+
+// Conversation Context - Track full conversations for better learning
+model Conversation {
+  id        String   @id @default(uuid())
+  projectId String
+  title     String?
+  metadata  Json? // Domain, tags, etc.
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@map("conversations")
 }

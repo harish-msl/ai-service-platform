@@ -21,7 +21,7 @@ export default function HomePage() {
           <div className="flex gap-4 justify-center">
             <Link
               href="/login"
-              className="ai-button inline-flex items-center px-6 py-3 rounded-lg font-medium"
+              className="ai-button inline-flex items-center px-6 py-3 rounded-lg text-white font-medium"
             >
               Get Started
               <ArrowRight className="ml-2 h-5 w-5" />
@@ -146,7 +146,7 @@ export default function HomePage() {
           </p>
           <Link
             href="/login"
-            className="ai-button inline-flex items-center px-8 py-4 rounded-lg font-medium text-lg"
+            className="ai-button inline-flex items-center px-8 py-4 rounded-lg text-white font-medium text-lg"
           >
             Get Started Now
             <ArrowRight className="ml-2 h-6 w-6" />

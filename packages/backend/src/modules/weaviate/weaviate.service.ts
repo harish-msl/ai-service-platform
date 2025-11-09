@@ -97,6 +97,23 @@ export class WeaviateService implements OnModuleInit, OnModuleDestroy {
     this.logger.log('Weaviate service shutting down');
   }
 
+  /**
+   * Get Weaviate client for direct access
+   */
+  getClient(): WeaviateClient {
+    if (!this.isAvailable) {
+      throw new Error('Weaviate is not available');
+    }
+    return this.client;
+  }
+
+  /**
+   * Check if Weaviate is available
+   */
+  isWeaviateAvailable(): boolean {
+    return this.isAvailable;
+  }
+
   private async checkConnection(): Promise<boolean> {
     try {
       const meta = await this.client.misc.metaGetter().do();

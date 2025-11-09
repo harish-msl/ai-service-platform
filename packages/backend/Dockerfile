@@ -24,12 +24,22 @@ CMD ["pnpm", "run", "start:dev"]
 # Builder stage
 FROM base AS builder
 WORKDIR /app/packages/backend
-COPY --from=dependencies /app/node_modules ./../../node_modules
-COPY --from=dependencies /app/packages/backend/node_modules ./node_modules
+
+# First copy source code
 COPY packages/backend .
+
+# Then copy node_modules (this overwrites if conflicts)
+COPY --from=dependencies /app/node_modules /app/node_modules
+COPY --from=dependencies /app/packages/backend/node_modules ./node_modules
+
+# Regenerate Prisma client to ensure it's fresh
 RUN npx prisma generate
+
+# Build
 RUN pnpm run build
-RUN pnpm prune --prod
+
+# Don't prune - we need Prisma client which gets removed
+# RUN pnpm prune --prod
 
 # Production stage
 FROM node:22.11.0-alpine AS production
@@ -47,6 +57,8 @@ COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/package.json ./
+# Copy generated Prisma client from pnpm structure
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules/.pnpm ./node_modules/.pnpm
 
 USER nestjs
 

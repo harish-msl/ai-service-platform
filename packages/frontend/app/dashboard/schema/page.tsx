@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Database, Upload, FileText, Link2, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Database, Upload, FileText, Link2, Loader2, CheckCircle2, AlertCircle, Download, Sparkles, FileJson, ChevronDown, ChevronUp, Copy, ExternalLink, Clock } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,8 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import { ContextPreviewModal } from "@/components/context-preview-modal";
+import { ContextGenerationProgress } from "@/components/context-generation-progress";
 import api from "@/lib/api";
 import { toast } from "sonner";
 
@@ -86,6 +89,7 @@ function maskUser(user?: string) {
 }
 
 export default function SchemaPage() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("file");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -93,6 +97,7 @@ export default function SchemaPage() {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [schemaPreview, setSchemaPreview] = useState<SchemaPreview | null>(null);
   const [showAllTables, setShowAllTables] = useState(false);
+  const [contextJsonFile, setContextJsonFile] = useState<File | null>(null);
   const [connectionInfo, setConnectionInfo] = useState<{
     connectionString?: string;
     host?: string;
@@ -102,9 +107,13 @@ export default function SchemaPage() {
     lastSyncedAt?: string;
     isAutoDiscovery?: boolean;
   } | null>(null);
+  
+  // State for expandable context sections
+  const [expandedAiContext, setExpandedAiContext] = useState(false);
+  const [expandedManualContext, setExpandedManualContext] = useState(false);
 
   // Fetch projects
-  const { data: projects } = useQuery<Project[]>({
+  const { data: projects, isLoading: projectsLoading } = useQuery<Project[]>({
     queryKey: ["projects"],
     queryFn: async () => {
       const response = await api.get("/projects");
@@ -272,6 +281,211 @@ export default function SchemaPage() {
     },
   });
 
+  // Fetch project context
+  const { data: projectContext, refetch: refetchContext } = useQuery({
+    queryKey: ['project-context', selectedProjectId],
+    queryFn: async () => {
+      if (!selectedProjectId) return null;
+      const response = await api.get(`/projects/${selectedProjectId}/context`);
+      return response.data;
+    },
+    enabled: !!selectedProjectId,
+  });
+
+  // State for context preview modal
+  const [contextPreview, setContextPreview] = useState<{
+    aiGeneratedContext: string;
+    contextSummary: string;
+    initialPrompts: string[];
+    projectName: string;
+    projectDescription: string;
+  } | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+
+  // Real-time progress state
+  const [generationProgress, setGenerationProgress] = useState({
+    step: '',
+    progress: 0,
+    message: '',
+  });
+
+  // Generate AI context with real-time SSE updates
+  const generateContextWithSSE = (projectId: string) => {
+    const token = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('auth_access_token='))
+      ?.split('=')[1];
+
+    const eventSource = new EventSource(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/projects/${projectId}/context/generate/stream?force=true`,
+      {
+        // Note: EventSource doesn't support custom headers in browser
+        // We'll need to use query param for auth or upgrade to fetch with SSE polyfill
+      }
+    );
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.step === 'complete') {
+          // Generation complete
+          eventSource.close();
+          setContextPreview(data.data);
+          setShowPreviewModal(true);
+          toast.success("Context generated! Please review before saving.");
+        } else if (data.step === 'error') {
+          // Error occurred
+          eventSource.close();
+          toast.error(data.message || "Failed to generate context");
+        } else {
+          // Progress update
+          setGenerationProgress({
+            step: data.step,
+            progress: data.progress,
+            message: data.message,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to parse SSE data:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE error:', error);
+      eventSource.close();
+      toast.error("Connection lost. Please try again.");
+    };
+
+    return () => eventSource.close();
+  };
+
+  // Generate AI context preview mutation (fallback without SSE)
+  const generateContextMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const response = await api.post(`/projects/${projectId}/context/generate?force=true`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      // Show preview modal instead of immediately saving
+      setContextPreview(data);
+      setShowPreviewModal(true);
+      toast.success("Context generated! Please review before saving.");
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to generate context");
+    },
+  });
+
+  // Confirm and save context mutation
+  const confirmContextMutation = useMutation({
+    mutationFn: async (data: {
+      projectId: string;
+      contextData: {
+        aiGeneratedContext: string;
+        contextSummary: string;
+        initialPrompts: string[];
+      };
+    }) => {
+      const response = await api.post(`/projects/${data.projectId}/context/confirm`, {
+        aiGeneratedContext: data.contextData.aiGeneratedContext,
+        contextSummary: data.contextData.contextSummary,
+        initialPrompts: data.contextData.initialPrompts,
+        userEdits: {
+          aiGeneratedContext: data.contextData.aiGeneratedContext,
+          contextSummary: data.contextData.contextSummary,
+          initialPrompts: data.contextData.initialPrompts,
+        },
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success("Context saved successfully!");
+      setShowPreviewModal(false);
+      setContextPreview(null);
+      refetchContext();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to save context");
+    },
+  });
+
+  const handleConfirmContext = (editedData: {
+    aiGeneratedContext: string;
+    contextSummary: string;
+    initialPrompts: string[];
+  }) => {
+    if (!selectedProjectId) return;
+    confirmContextMutation.mutate({
+      projectId: selectedProjectId,
+      contextData: editedData,
+    });
+  };
+
+  const handleRegenerateContext = () => {
+    if (!selectedProjectId) return;
+    setShowPreviewModal(false);
+    setContextPreview(null);
+    // Trigger regeneration
+    setTimeout(() => {
+      generateContextMutation.mutate(selectedProjectId);
+    }, 500);
+  };
+
+  // Download context template
+  const handleDownloadTemplate = async () => {
+    if (!selectedProjectId) {
+      toast.error("Please select a project first");
+      return;
+    }
+
+    try {
+      const response = await api.get(`/projects/${selectedProjectId}/context/template`);
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'project-context-template.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Template downloaded successfully");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to download template");
+    }
+  };
+
+  // Upload manual context mutation
+  const uploadContextMutation = useMutation({
+    mutationFn: async ({ projectId, json }: { projectId: string; json: any }) => {
+      const response = await api.put(`/projects/${projectId}/context/manual`, json);
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success("Manual context uploaded successfully!");
+      refetchContext();
+      setContextJsonFile(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to upload context");
+    },
+  });
+
+  // Handle context file upload
+  const handleContextFileUpload = async () => {
+    if (!contextJsonFile || !selectedProjectId) {
+      toast.error("Please select a project and JSON file");
+      return;
+    }
+
+    try {
+      const text = await contextJsonFile.text();
+      const json = JSON.parse(text);
+      uploadContextMutation.mutate({ projectId: selectedProjectId, json });
+    } catch (error) {
+      toast.error("Invalid JSON file");
+    }
+  };
+
   // Handle file drop
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -373,44 +587,56 @@ export default function SchemaPage() {
         </p>
       </div>
 
-      {/* Project Selection */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="max-w-md">
-            <Label htmlFor="project">Select Project *</Label>
-            <Select value={selectedProjectId} onValueChange={(value: string) => {
-              setSelectedProjectId(value);
-              setValue("projectId", value);
-            }}>
-              <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Choose a project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects && projects.length > 0 ? (
-                  projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name} ({project.environment})
-                    </SelectItem>
-                  ))
-                ) : (
-                  <div className="p-2 text-sm text-muted-foreground">
-                    No projects available. Create one first.
-                  </div>
-                )}
-              </SelectContent>
-            </Select>
-            {!selectedProjectId && (
-              <p className="text-sm text-muted-foreground mt-2">
-                Please select a project to upload or connect schema
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Project Selection Loading */}
+      {projectsLoading ? (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="max-w-md space-y-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="max-w-md">
+              <Label htmlFor="project">Select Project *</Label>
+              <Select value={selectedProjectId} onValueChange={(value: string) => {
+                setSelectedProjectId(value);
+                setValue("projectId", value);
+              }}>
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Choose a project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects && projects.length > 0 ? (
+                    projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name} ({project.environment})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="p-2 text-sm text-muted-foreground">
+                      No projects available. Create one first.
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+              {!selectedProjectId && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Please select a project to upload or connect schema
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Upload Methods */}
       <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value)}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="file">
             <Upload className="w-4 h-4 mr-2" />
             File Upload
@@ -422,6 +648,10 @@ export default function SchemaPage() {
           <TabsTrigger value="database">
             <Link2 className="w-4 h-4 mr-2" />
             Database Connection
+          </TabsTrigger>
+          <TabsTrigger value="context">
+            <Database className="w-4 h-4 mr-2" />
+            Context
           </TabsTrigger>
         </TabsList>
 
@@ -603,12 +833,15 @@ export default function SchemaPage() {
                     {/* User & Password */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="user">User</Label>
+                        <Label htmlFor="user">Database User</Label>
                         <Input
                           id="user"
-                          placeholder="postgres"
+                          placeholder={dialect === "POSTGRESQL" ? "postgres" : "root"}
                           {...register("user")}
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Use database username (e.g., "postgres" or "root"), not an email
+                        </p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="password">Password</Label>
@@ -670,6 +903,308 @@ export default function SchemaPage() {
                   )}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Context Management Tab */}
+        <TabsContent value="context" className="space-y-4">
+          {/* Display current context FIRST if exists */}
+          {projectContext && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Current Project Context</CardTitle>
+                    <CardDescription>
+                      AI-generated and manual context merged
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    {projectContext.lastAiGeneratedAt && (
+                      <Badge variant="outline" className="gap-1">
+                        <Clock className="w-3 h-3" />
+                        Generated {new Date(projectContext.lastAiGeneratedAt).toLocaleDateString()}
+                      </Badge>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (!selectedProjectId) return;
+                        window.open(`/dashboard/projects/${selectedProjectId}/context`, '_blank');
+                      }}
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Full View
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Context Summary */}
+                {projectContext.contextSummary && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      Context Summary
+                    </p>
+                    <p className="text-sm text-blue-800 dark:text-blue-200">{projectContext.contextSummary}</p>
+                  </div>
+                )}
+                
+                {/* Initial Suggestion Prompts */}
+                {projectContext.initialPrompts && projectContext.initialPrompts.length > 0 && (
+                  <div>
+                    <p className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      Suggestion Prompts ({projectContext.initialPrompts.length})
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {projectContext.initialPrompts.map((prompt: string, idx: number) => (
+                        <div 
+                          key={idx} 
+                          className="p-3 bg-muted rounded-lg text-sm hover:bg-muted/80 transition-colors border border-border"
+                        >
+                          <p className="text-foreground">{prompt}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* AI Generated Context - Expandable */}
+                {projectContext.aiGeneratedContext && (
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setExpandedAiContext(!expandedAiContext)}
+                      className="w-full p-4 bg-muted/50 hover:bg-muted transition-colors flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Database className="w-4 h-4" />
+                        <span className="text-sm font-semibold">AI Generated Context</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {projectContext.aiGeneratedContext.length.toLocaleString()} characters
+                        </Badge>
+                      </div>
+                      {expandedAiContext ? (
+                        <ChevronUp className="w-5 h-5" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5" />
+                      )}
+                    </button>
+                    
+                    {expandedAiContext && (
+                      <div className="p-4 border-t border-border">
+                        <div className="flex justify-end mb-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(projectContext.aiGeneratedContext);
+                              toast.success("Copied to clipboard!");
+                            }}
+                          >
+                            <Copy className="w-4 h-4 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-muted p-4 rounded-lg max-h-96 overflow-y-auto">
+                          <pre className="text-sm text-foreground whitespace-pre-wrap font-mono">
+                            {projectContext.aiGeneratedContext}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Preview when collapsed */}
+                    {!expandedAiContext && (
+                      <div className="p-4 border-t border-border bg-muted/30">
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-3">
+                          {projectContext.aiGeneratedContext.substring(0, 200)}...
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2 italic">
+                          Click to expand and view full context
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Manual Context JSON - Expandable */}
+                {projectContext.manualContextJson && (
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setExpandedManualContext(!expandedManualContext)}
+                      className="w-full p-4 bg-muted/50 hover:bg-muted transition-colors flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <FileJson className="w-4 h-4" />
+                        <span className="text-sm font-semibold">Manual Context (Custom JSON)</span>
+                        <Badge variant="secondary" className="text-xs">
+                          User-defined
+                        </Badge>
+                      </div>
+                      {expandedManualContext ? (
+                        <ChevronUp className="w-5 h-5" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5" />
+                      )}
+                    </button>
+                    
+                    {expandedManualContext && (
+                      <div className="p-4 border-t border-border">
+                        <div className="flex justify-end mb-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(
+                                typeof projectContext.manualContextJson === 'string' 
+                                  ? projectContext.manualContextJson 
+                                  : JSON.stringify(projectContext.manualContextJson, null, 2)
+                              );
+                              toast.success("Copied to clipboard!");
+                            }}
+                          >
+                            <Copy className="w-4 h-4 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-muted p-4 rounded-lg max-h-96 overflow-y-auto">
+                          <pre className="text-sm text-foreground whitespace-pre-wrap font-mono">
+                            {typeof projectContext.manualContextJson === 'string'
+                              ? projectContext.manualContextJson
+                              : JSON.stringify(projectContext.manualContextJson, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Preview when collapsed */}
+                    {!expandedManualContext && (
+                      <div className="p-4 border-t border-border bg-muted/30">
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-3">
+                          {typeof projectContext.manualContextJson === 'string'
+                            ? projectContext.manualContextJson.substring(0, 200)
+                            : JSON.stringify(projectContext.manualContextJson, null, 2).substring(0, 200)}...
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2 italic">
+                          Click to expand and view full manual context
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Metadata */}
+                {projectContext.lastAiGeneratedAt && (
+                  <div className="pt-4 border-t border-border">
+                    <p className="text-xs text-muted-foreground flex items-center gap-2">
+                      <Clock className="w-3 h-3" />
+                      Last AI generation: {new Date(projectContext.lastAiGeneratedAt).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* AI Context Generation Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{projectContext ? "Regenerate AI Context" : "AI Context Generation"}</CardTitle>
+              <CardDescription>
+                {projectContext 
+                  ? "Generate new context to update your project's AI understanding" 
+                  : "Generate intelligent context from your schema for faster, more accurate AI responses"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button
+                onClick={() => {
+                  if (!selectedProjectId) {
+                    toast.error("Please select a project first");
+                    return;
+                  }
+                  generateContextMutation.mutate(selectedProjectId);
+                }}
+                disabled={!selectedProjectId || generateContextMutation.isPending}
+                className="w-full"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                {generateContextMutation.isPending ? "Generating..." : projectContext ? "Regenerate Context" : "Generate AI Context"}
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                AI will analyze your database schema and generate project-specific context including business rules, common queries, and terminology.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Manual Context Upload Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Manual Context (JSON)</CardTitle>
+              <CardDescription>
+                Upload custom context JSON with business rules, best practices, and examples
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleDownloadTemplate}
+                  disabled={!selectedProjectId}
+                  className="flex-1"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Template
+                </Button>
+                <div className="flex-1">
+                  <Input
+                    type="file"
+                    accept=".json"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setContextJsonFile(file);
+                      }
+                    }}
+                    className="hidden"
+                    id="context-json-upload"
+                  />
+                  <Label htmlFor="context-json-upload" className="cursor-pointer">
+                    <Button type="button" variant="outline" asChild className="w-full">
+                      <span>
+                        <FileJson className="w-4 h-4 mr-2" />
+                        {contextJsonFile ? contextJsonFile.name : "Choose JSON File"}
+                      </span>
+                    </Button>
+                  </Label>
+                </div>
+              </div>
+
+              {contextJsonFile && (
+                <Button
+                  onClick={handleContextFileUpload}
+                  disabled={uploadContextMutation.isPending}
+                  className="w-full"
+                >
+                  {uploadContextMutation.isPending ? "Uploading..." : "Upload Context"}
+                </Button>
+              )}
+
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="font-medium mb-2">Template includes:</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• Business rules and logic</li>
+                  <li>• Common SQL query examples</li>
+                  <li>• Technical-to-business terminology mapping</li>
+                  <li>• Key metrics and calculations</li>
+                  <li>• Table relationships and constraints</li>
+                  <li>• Best practices for querying</li>
+                </ul>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -809,6 +1344,23 @@ export default function SchemaPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Context Generation Progress Animation */}
+      <ContextGenerationProgress
+        isOpen={generateContextMutation.isPending || !!generationProgress.step}
+        realProgress={generationProgress.step ? generationProgress : null}
+      />
+
+      {/* Context Preview Modal */}
+      <ContextPreviewModal
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        previewData={contextPreview}
+        onConfirm={handleConfirmContext}
+        onRegenerate={handleRegenerateContext}
+        isConfirming={confirmContextMutation.isPending}
+        isRegenerating={generateContextMutation.isPending}
+      />
     </div>
   );
 }

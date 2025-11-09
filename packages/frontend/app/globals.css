@@ -41,14 +41,21 @@
     --ring: 222.2 84% 4.9%;
 
     /* Corner radius */
-    --radius: 0.5rem;
+    --radius: 2rem;
 
     /* Shadows for depth */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow: 0 1px 10px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
     --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+    /* AI Accent Colors & Effects (Purple/Blue gradient for AI features) */
+    --ai-accent: 250 95% 65%;
+    --ai-accent-foreground: 0 0% 100%;
+    --ai-glow: 0 0px 20px rgba(139, 92, 246, 0.3);
+    --ai-glow-strong: 0 0px 30px rgba(139, 92, 246, 0.5);
+    --ai-gradient: linear-gradient(135deg, hsl(250 95% 65%), hsl(217 91% 60%));
   }
 
   /* Dark mode variant */
@@ -80,6 +87,11 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+
+    /* AI Accent for dark mode */
+    --ai-accent: 250 95% 70%;
+    --ai-glow: 0 0px 25px rgba(167, 139, 250, 0.4);
+    --ai-glow-strong: 0 0px 35px rgba(167, 139, 250, 0.6);
   }
 
   body {
@@ -125,3 +137,177 @@
   }
 }
 
+/* ----------------------------------------
+   🤖 AI-Specific Styles & Animations
+---------------------------------------- */
+@layer components {
+  /* AI Button with gradient and glow */
+  .ai-button {
+    @apply relative overflow-hidden;
+    background: var(--ai-gradient);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .ai-button:hover:not(:disabled) {
+    box-shadow: var(--ai-glow-strong);
+    transform: translateY(-2px);
+  }
+  
+  .ai-button:focus:not(:disabled) {
+    box-shadow: var(--ai-glow-strong);
+    animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  .ai-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* AI Avatar with gradient glow */
+  .ai-avatar {
+    background: var(--ai-gradient);
+    box-shadow: var(--ai-glow);
+    transition: all 0.3s ease;
+  }
+  
+  .ai-avatar:hover {
+    box-shadow: var(--ai-glow-strong);
+    transform: scale(1.05);
+  }
+
+  /* Assistant message bubble with subtle glow */
+  .assistant-bubble {
+    box-shadow: var(--ai-glow);
+    transition: all 0.3s ease;
+  }
+  
+  .assistant-bubble:hover {
+    box-shadow: var(--ai-glow-strong);
+  }
+}
+
+/* ----------------------------------------
+   🎬 Keyframe Animations
+---------------------------------------- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: var(--ai-glow);
+  }
+  50% {
+    box-shadow: var(--ai-glow-strong);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes typing-dots {
+  0%, 20% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes token-appear {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Animation utility classes */
+@layer utilities {
+  .animate-fadeIn {
+    animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  
+  .animate-slide-in-right {
+    animation: slide-in-right 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  
+  .animate-slide-in-left {
+    animation: slide-in-left 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .animate-typing-dots {
+    animation: typing-dots 1.4s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s linear infinite;
+  }
+
+  .animate-token-appear {
+    animation: token-appear 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .animate-gradient-shift {
+    animation: gradient-shift 6s ease infinite;
+    background-size: 200% 200%;
+  }
+
+  /* Focus ring for accessibility */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-shadow;
+  }
+}

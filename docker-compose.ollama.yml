@@ -36,9 +36,12 @@ services:
       - |
         # Wait for Ollama to be fully ready
         sleep 5
-        # Pull Qwen2.5 7B model (similar to vLLM model)
-        ollama pull qwen2.5:7b
-        echo "Model pulled successfully!"
+        # Pull Qwen2.5 0.5B model (ultra-fast for CPU)
+        ollama pull qwen2.5:0.5b
+        echo "Model qwen2.5:0.5b pulled successfully!"
+        # Also pull 1.5b as backup
+        ollama pull qwen2.5:1.5b
+        echo "Model qwen2.5:1.5b pulled successfully!"
     volumes:
       - ollama_data:/root/.ollama
     networks:
