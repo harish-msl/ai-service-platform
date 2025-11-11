@@ -51,6 +51,9 @@ RUN apk add --no-cache dumb-init
 RUN addgroup -g 1001 -S nodejs && \
   adduser -S nextjs -u 1001
 
+# Copy the entire pnpm store to root level (where symlinks in standalone expect it)
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules /node_modules
+
 # Copy standalone output and static files
 COPY --from=builder --chown=nextjs:nodejs /app/packages/frontend/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/packages/frontend/.next/static ./.next/static
@@ -65,5 +68,7 @@ EXPOSE 3000
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+CMD ["dumb-init", "node", "server.js"]
 
 CMD ["dumb-init", "node", "server.js"]

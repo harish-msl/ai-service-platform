@@ -52,13 +52,14 @@ RUN apk add --no-cache dumb-init
 RUN addgroup -g 1001 -S nodejs && \
   adduser -S nestjs -u 1001
 
+# Copy the entire pnpm store to root level (where symlinks expect it)
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules /node_modules
+
 # Copy built application
 COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/package.json ./
-# Copy generated Prisma client from pnpm structure
-COPY --from=builder --chown=nestjs:nodejs /app/node_modules/.pnpm ./node_modules/.pnpm
 
 USER nestjs
 
