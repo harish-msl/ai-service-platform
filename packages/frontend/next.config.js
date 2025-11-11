@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // output: 'standalone', // Disabled for Windows development (symlink permission issues)
+  output: 'standalone', // Required for Docker production builds
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
