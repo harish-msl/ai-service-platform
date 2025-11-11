@@ -2,7 +2,7 @@ services:
   backend:
     build:
       target: production
-    command: node dist/main.js
+    command: ["dumb-init", "node", "dist/main.js"]
     environment:
       NODE_ENV: production
       LOG_LEVEL: info
@@ -20,7 +20,7 @@ services:
   frontend:
     build:
       target: production
-    command: pnpm run start
+    command: ["dumb-init", "node", "server.js"]
     environment:
       NODE_ENV: production
     volumes: []  # Remove development volumes
