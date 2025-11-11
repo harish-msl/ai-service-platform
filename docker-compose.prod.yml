@@ -6,6 +6,7 @@ services:
     environment:
       NODE_ENV: production
       LOG_LEVEL: info
+    volumes: []  # Remove development volumes
     deploy:
       replicas: 2
       resources:
@@ -22,6 +23,7 @@ services:
     command: pnpm run start
     environment:
       NODE_ENV: production
+    volumes: []  # Remove development volumes
     deploy:
       replicas: 2
       resources:
