@@ -45,8 +45,12 @@ RUN pnpm run build
 FROM node:22.11.0-alpine AS production
 WORKDIR /app
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install runtime dependencies and build tools for native modules
+RUN apk add --no-cache \
+    dumb-init \
+    python3 \
+    make \
+    g++
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -60,6 +64,10 @@ COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/packages/backend/package.json ./
+
+# Rebuild bcrypt for Alpine Linux (as root before switching user)
+RUN cd /node_modules/.pnpm/bcrypt@5.1.1/node_modules/bcrypt && \
+    npm rebuild bcrypt --build-from-source
 
 USER nestjs
 
