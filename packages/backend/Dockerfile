@@ -8,15 +8,15 @@ FROM base AS dependencies
 COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/backend/package.json ./packages/backend/
 COPY packages/backend/prisma ./packages/backend/prisma/
+RUN pnpm install --frozen-lockfile --filter backend
 WORKDIR /app/packages/backend
-RUN pnpm install --frozen-lockfile
 RUN npx prisma generate
 
 # Development stage
 FROM base AS development
+COPY --from=dependencies /app/node_modules /app/node_modules
+COPY --from=dependencies /app/packages/backend/node_modules /app/packages/backend/node_modules
 WORKDIR /app/packages/backend
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY --from=dependencies /app/packages/backend/node_modules ./node_modules
 COPY packages/backend .
 EXPOSE 3001
 CMD ["pnpm", "run", "start:dev"]

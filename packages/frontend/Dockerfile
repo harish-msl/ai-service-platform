@@ -7,14 +7,14 @@ RUN npm install -g pnpm@latest
 FROM base AS dependencies
 COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/frontend/package.json ./packages/frontend/
+RUN pnpm install --frozen-lockfile --filter frontend
 WORKDIR /app/packages/frontend
-RUN pnpm install --frozen-lockfile
 
 # Development stage
 FROM base AS development
+COPY --from=dependencies /app/node_modules /app/node_modules
+COPY --from=dependencies /app/packages/frontend/node_modules /app/packages/frontend/node_modules
 WORKDIR /app/packages/frontend
-COPY --from=dependencies /app/node_modules ./../../node_modules
-COPY --from=dependencies /app/packages/frontend/node_modules ./node_modules
 COPY packages/frontend .
 EXPOSE 3000
 CMD ["pnpm", "run", "dev"]
