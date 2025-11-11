@@ -51,10 +51,12 @@ RUN apk add --no-cache dumb-init
 RUN addgroup -g 1001 -S nodejs && \
   adduser -S nextjs -u 1001
 
-# Copy necessary files
-COPY --from=builder --chown=nextjs:nodejs /app/packages/frontend/public ./public
+# Copy standalone output and static files
 COPY --from=builder --chown=nextjs:nodejs /app/packages/frontend/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/packages/frontend/.next/static ./.next/static
+
+# Create public directory (Next.js doesn't require it if no static files)
+RUN mkdir -p ./public
 
 USER nextjs
 
